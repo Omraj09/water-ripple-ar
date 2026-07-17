@@ -524,7 +524,14 @@
         startBtn.addEventListener('click', () => {
           logErrorToScreen("Start button clicked. Unlocking media engines.");
           
-          const videos = document.querySelectorAll('video');
+          // CRITICAL FIX: Only select our animation overlay video tags to unlock!
+          // Selecting document.querySelectorAll('video') grabs MindAR's camera feed element
+          // and calling video.pause() on it freezes the live camera background stream permanently!
+          const videos = [
+            document.querySelector('#animation-video-0'),
+            document.querySelector('#animation-video-1')
+          ];
+          
           videos.forEach(unlockVideo);
 
           // Hide loading overlay to reveal the camera feed
@@ -590,6 +597,7 @@
   </div>
 
   <!-- 3. AR Scene Container -->
+  <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
@@ -598,6 +606,9 @@
     device-orientation-permission-ui="enabled: false"
     loading-screen="enabled: false">
     
+    <!-- We place the video elements inside <a-assets>, but use CSS overrides (defined in head) 
+         to override display:none to display:block with tiny opacity. This satisfies both A-Frame's asset loading 
+         registry and WebKit's hardware decoder visibility checks. -->
     <a-assets>
       <!-- Video 0 points to animation.mp4 -->
       <video 
@@ -627,6 +638,7 @@
 
     <!-- Target 1 (Index 0) -->
     <a-entity mindar-image-target="targetIndex: 0" video-controller="videoSelector: #animation-video-0; targetId: 0">
+      <!-- Fits exactly to the 1792 x 2374 target image boundary ratio (1.0 : 1.32478) -->
       <a-video 
         src="#animation-video-0" 
         width="1.0" 
@@ -638,6 +650,7 @@
 
     <!-- Target 2 (Index 1) -->
     <a-entity mindar-image-target="targetIndex: 1" video-controller="videoSelector: #animation-video-1; targetId: 1">
+      <!-- Fits to your second target. Adjust height dynamically to match your second target image ratio (height/width) -->
       <a-video 
         src="#animation-video-1" 
         width="1.0" 
