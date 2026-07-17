@@ -390,7 +390,7 @@
   <!-- 3. AR Scene Container -->
   <!-- MindAR Image engine setup: uiLoading/uiError/uiScanning disabled in favor of our custom CSS interfaces -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no; uiScanning: no;" 
+    mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
@@ -418,8 +418,8 @@
       <!-- Perfect vertical 3:4 aspect ratio video plane overlay -->
       <a-video 
         src="#animation-video" 
-        width="0.75" 
-        height="1.0" 
+        width="1.0" 
+        height="1.33333" 
         position="0 0 0" 
         rotation="0 0 0">
       </a-video>
