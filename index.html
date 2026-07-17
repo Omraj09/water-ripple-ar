@@ -347,14 +347,10 @@
   </style>
   
   <script>
-    // System log window for mobile debugging (Hidden by default, pops up on error)
+    // System log window for mobile debugging (Always Visible)
     function logErrorToScreen(msg) {
       const consoleDiv = document.querySelector('#debug-console');
       if (consoleDiv) {
-        // Automatically make visible if an actual error occurs
-        if (msg.startsWith('JS ERR') || msg.startsWith('ERR:')) {
-          consoleDiv.style.display = 'block';
-        }
         const errEl = document.createElement('div');
         errEl.style.margin = '4px 0';
         errEl.innerText = `> ${msg}`;
@@ -398,14 +394,14 @@
           logErrorToScreen(`Video ${targetId} playing successfully.`);
         }).catch(err => {
           playPromises[targetId] = null;
-          logErrorToScreen(`ERR: Video ${targetId} play blocked: ${err.message}`);
+          logErrorToScreen(`ERR: Video ${targetId} play blocked: ${err.name} - ${err.message}`);
         });
       };
 
       if (video.readyState >= 1) {
         attemptPlay();
       } else {
-        logErrorToScreen(`Video ${targetId} downloading...`);
+        logErrorToScreen(`Video ${targetId} downloading (readyState ${video.readyState})...`);
         const playOnLoad = () => {
           if (activeTargets.has(targetId)) {
             attemptPlay();
@@ -556,8 +552,8 @@
 </head>
 <body>
 
-  <!-- Diagnostic console for mobile debugging (Hidden by default, pops up on error) -->
-  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; display: none; border-top: 1px solid #ff4e4e; pointer-events: auto;">
+  <!-- Diagnostic console for mobile debugging (Always Visible) -->
+  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; border-top: 1px solid #ff4e4e; pointer-events: auto;">
     <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
   </div>
 
