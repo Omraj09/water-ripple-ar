@@ -6,7 +6,7 @@
   <title>Water Ripple AR Experience (Multi-Frame)</title>
   
   <script>
-    // Unconditionally disable createImageBitmap to prevent iOS 17 / macOS WebKit WebGL canvas compilation memory leaks and camera freezes
+    // Disable createImageBitmap unconditionally to bypass iOS 17 WebGL memory leaks
     window.createImageBitmap = undefined;
     console.log("WebGL Stability: Disabled window.createImageBitmap.");
   </script>
@@ -347,11 +347,10 @@
   </style>
   
   <script>
-    // System log window for mobile debugging
+    // System log window for mobile debugging (Always Visible)
     function logErrorToScreen(msg) {
       const consoleDiv = document.querySelector('#debug-console');
       if (consoleDiv) {
-        consoleDiv.style.display = 'block';
         const errEl = document.createElement('div');
         errEl.style.margin = '4px 0';
         errEl.innerText = `> ${msg}`;
@@ -386,25 +385,23 @@
     // Safely plays video elements on iOS WebKit avoiding concurrency exceptions
     function safePlayVideo(video, targetId) {
       if (!video) return;
-      
-      // If the target was already found and we are already attempting to play, exit
       if (playPromises[targetId]) return;
 
       const attemptPlay = () => {
         playPromises[targetId] = video.play();
         playPromises[targetId].then(() => {
           playPromises[targetId] = null;
-          console.log(`Video ${targetId} started playing.`);
+          logErrorToScreen(`Video ${targetId} playing successfully.`);
         }).catch(err => {
           playPromises[targetId] = null;
-          console.warn(`Autoplay block caught on video ${targetId}:`, err);
+          logErrorToScreen(`ERR: Video ${targetId} play blocked: ${err.message}`);
         });
       };
 
       if (video.readyState >= 1) {
         attemptPlay();
       } else {
-        console.log(`Video ${targetId} not ready. Queuing safe play.`);
+        logErrorToScreen(`Video ${targetId} downloading...`);
         const playOnLoad = () => {
           if (activeTargets.has(targetId)) {
             attemptPlay();
@@ -421,17 +418,16 @@
 
       const promise = playPromises[targetId];
       if (promise) {
-        // Wait for the active play command to complete first, then pause it safely
         promise.then(() => {
           if (!activeTargets.has(targetId)) {
             video.pause();
-            console.log(`Safely paused video ${targetId} after play resolved.`);
+            logErrorToScreen(`Video ${targetId} safely paused.`);
           }
         }).catch(() => {});
         playPromises[targetId] = null;
       } else if (!video.paused) {
         video.pause();
-        console.log(`Paused video ${targetId} immediately.`);
+        logErrorToScreen(`Video ${targetId} paused.`);
       }
     }
 
@@ -447,7 +443,7 @@
 
         // On target found: safely trigger playback, hide scanning overlay
         this.el.addEventListener('targetFound', () => {
-          console.log(`Target ${this.data.targetId} Found.`);
+          logErrorToScreen(`Target ${this.data.targetId} Found!`);
           activeTargets.add(this.data.targetId);
           safePlayVideo(video, this.data.targetId);
           
@@ -458,7 +454,7 @@
 
         // On target lost: safely pause playback, restore overlay if all targets lost
         this.el.addEventListener('targetLost', () => {
-          console.log(`Target ${this.data.targetId} Lost.`);
+          logErrorToScreen(`Target ${this.data.targetId} Lost.`);
           activeTargets.delete(this.data.targetId);
           safePauseVideo(video, this.data.targetId);
           
@@ -471,6 +467,8 @@
 
     // Window-level AR engine listeners
     document.addEventListener('DOMContentLoaded', () => {
+      logErrorToScreen("DOM fully loaded. Initializing systems.");
+      
       const sceneEl = document.querySelector('a-scene');
       const loadingScreen = document.querySelector('#custom-loading');
       const statusText = document.querySelector('.status-text');
@@ -479,14 +477,14 @@
 
       // Show start button when engine is ready
       sceneEl.addEventListener('arReady', (event) => {
-        console.log("MindAR Engine initialized successfully.");
+        logErrorToScreen("arReady: MindAR Engine fully initialized.");
         if (statusText) statusText.innerText = "ENGINE READY";
         if (startBtn) startBtn.classList.remove('hidden');
       });
 
       // Handle setup errors gracefully
       sceneEl.addEventListener('arError', (event) => {
-        console.error("MindAR Engine failed to initialize:", event.detail ? JSON.stringify(event.detail) : event);
+        logErrorToScreen(`arError: MindAR Engine failed. Detail: ${JSON.stringify(event.detail || event)}`);
         if (statusText) {
           statusText.innerText = "Camera initialization failed";
           statusText.style.color = "#ff4e4e";
@@ -497,22 +495,23 @@
       // Helper function to safely unlock video element media state
       function unlockVideo(video) {
         if (!video) return;
+        logErrorToScreen(`Checking lock status for ${video.id}`);
         
         if (video.readyState >= 1) {
           video.play().then(() => {
             video.pause();
-            console.log(`Unlocked video: ${video.id}`);
+            logErrorToScreen(`Unlocked context for: ${video.id}`);
           }).catch(err => {
-            console.warn(`Initial unlock failed for ${video.id}:`, err);
+            logErrorToScreen(`ERR: Unlock failed for ${video.id}: ${err.message}`);
           });
         } else {
-          console.log(`Video ${video.id} loading. Queued unlock on load.`);
+          logErrorToScreen(`Video ${video.id} is buffering... Queueing unlock.`);
           const asyncUnlock = () => {
             video.play().then(() => {
               video.pause();
-              console.log(`Asynchronously unlocked video: ${video.id}`);
+              logErrorToScreen(`Unlocked context asynchronously for: ${video.id}`);
             }).catch(err => {
-              console.warn(`Asynchronous unlock failed for ${video.id}:`, err);
+              logErrorToScreen(`ERR: Async unlock failed for ${video.id}: ${err.message}`);
             });
             video.removeEventListener('canplay', asyncUnlock);
           };
@@ -523,7 +522,7 @@
       // Handle click/touchstart on the start button to unlock video contexts
       if (startBtn) {
         startBtn.addEventListener('click', () => {
-          console.log("Starting experience: Initiating video unlock checks.");
+          logErrorToScreen("Start button clicked. Unlocking media engines.");
           
           const videos = document.querySelectorAll('video');
           videos.forEach(unlockVideo);
@@ -531,12 +530,14 @@
           // Hide loading overlay to reveal the camera feed
           if (loadingScreen) {
             loadingScreen.classList.add('fade-out');
+            logErrorToScreen("Loading overlay faded out.");
           }
 
           // Show target scanner guide
           if (scanningOverlay) {
             setTimeout(() => {
               scanningOverlay.classList.remove('hidden');
+              logErrorToScreen("Scanning overlay displayed.");
             }, 800);
           }
         });
@@ -546,8 +547,8 @@
 </head>
 <body>
 
-  <!-- Diagnostic console for mobile debugging (only shows if errors occur) -->
-  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; display: none; border-top: 1px solid #ff4e4e; pointer-events: auto;">
+  <!-- Diagnostic console for mobile debugging (Always Visible) -->
+  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; border-top: 1px solid #ff4e4e; pointer-events: auto;">
     <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
   </div>
 
@@ -589,7 +590,6 @@
   </div>
 
   <!-- 3. AR Scene Container -->
-  <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
   <a-scene 
     mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
@@ -598,9 +598,6 @@
     device-orientation-permission-ui="enabled: false"
     loading-screen="enabled: false">
     
-    <!-- We place the video elements inside <a-assets>, but use CSS overrides (defined in head) 
-         to override display:none to display:block with tiny opacity. This satisfies both A-Frame's asset loading 
-         registry and WebKit's hardware decoder visibility checks. -->
     <a-assets>
       <!-- Video 0 points to animation.mp4 -->
       <video 
@@ -630,7 +627,6 @@
 
     <!-- Target 1 (Index 0) -->
     <a-entity mindar-image-target="targetIndex: 0" video-controller="videoSelector: #animation-video-0; targetId: 0">
-      <!-- Fits exactly to the 1792 x 2374 target image boundary ratio (1.0 : 1.32478) -->
       <a-video 
         src="#animation-video-0" 
         width="1.0" 
@@ -642,7 +638,6 @@
 
     <!-- Target 2 (Index 1) -->
     <a-entity mindar-image-target="targetIndex: 1" video-controller="videoSelector: #animation-video-1; targetId: 1">
-      <!-- Fits to your second target. Adjust height dynamically to match your second target image ratio (height/width) -->
       <a-video 
         src="#animation-video-1" 
         width="1.0" 
