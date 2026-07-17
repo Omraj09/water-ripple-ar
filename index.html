@@ -375,6 +375,59 @@
 
     // State machine to track active targets
     const activeTargets = new Set();
+    const playPromises = {};
+
+    // Safely plays video elements on iOS WebKit avoiding concurrency exceptions
+    function safePlayVideo(video, targetId) {
+      if (!video) return;
+      
+      // If the target was already found and we are already attempting to play, exit
+      if (playPromises[targetId]) return;
+
+      const attemptPlay = () => {
+        playPromises[targetId] = video.play();
+        playPromises[targetId].then(() => {
+          playPromises[targetId] = null;
+          console.log(`Video ${targetId} started playing.`);
+        }).catch(err => {
+          playPromises[targetId] = null;
+          console.warn(`Autoplay block caught on video ${targetId}:`, err);
+        });
+      };
+
+      if (video.readyState >= 1) {
+        attemptPlay();
+      } else {
+        console.log(`Video ${targetId} not ready. Queuing safe play.`);
+        const playOnLoad = () => {
+          if (activeTargets.has(targetId)) {
+            attemptPlay();
+          }
+          video.removeEventListener('canplay', playOnLoad);
+        };
+        video.addEventListener('canplay', playOnLoad);
+      }
+    }
+
+    // Safely pauses video elements by ensuring play promises have resolved first
+    function safePauseVideo(video, targetId) {
+      if (!video) return;
+
+      const promise = playPromises[targetId];
+      if (promise) {
+        // Wait for the active play command to complete first, then pause it safely
+        promise.then(() => {
+          if (!activeTargets.has(targetId)) {
+            video.pause();
+            console.log(`Safely paused video ${targetId} after play resolved.`);
+          }
+        }).catch(() => {});
+        playPromises[targetId] = null;
+      } else if (!video.paused) {
+        video.pause();
+        console.log(`Paused video ${targetId} immediately.`);
+      }
+    }
 
     // A-Frame component to handle video tracking sync and visibility dynamically
     AFRAME.registerComponent('video-controller', {
@@ -386,40 +439,23 @@
         const video = document.querySelector(this.data.videoSelector);
         const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
-        // On target found: play corresponding video, hide scanning guide
+        // On target found: safely trigger playback, hide scanning overlay
         this.el.addEventListener('targetFound', () => {
-          console.log(`Target ${this.data.targetId} Detected.`);
+          console.log(`Target ${this.data.targetId} Found.`);
           activeTargets.add(this.data.targetId);
+          safePlayVideo(video, this.data.targetId);
           
-          if (video) {
-            if (video.readyState >= 1) {
-              video.play().catch(err => {
-                console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
-              });
-            } else {
-              console.log(`Target ${this.data.targetId} detected, but video still downloading. Queued play.`);
-              const playOnLoad = () => {
-                if (activeTargets.has(this.data.targetId)) {
-                  video.play().catch(err => console.warn(err));
-                }
-                video.removeEventListener('canplay', playOnLoad);
-              };
-              video.addEventListener('canplay', playOnLoad);
-            }
-          }
           if (scanningOverlay) {
             scanningOverlay.classList.add('hidden');
           }
         });
 
-        // On target lost: pause corresponding video, show scanning guide ONLY if no other targets are tracked
+        // On target lost: safely pause playback, restore overlay if all targets lost
         this.el.addEventListener('targetLost', () => {
           console.log(`Target ${this.data.targetId} Lost.`);
           activeTargets.delete(this.data.targetId);
+          safePauseVideo(video, this.data.targetId);
           
-          if (video) {
-            video.pause();
-          }
           if (activeTargets.size === 0 && scanningOverlay) {
             scanningOverlay.classList.remove('hidden');
           }
