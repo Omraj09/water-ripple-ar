@@ -6,13 +6,9 @@
   <title>Water Ripple AR Experience (Multi-Frame)</title>
   
   <script>
-    // iOS 17 Safari WebKit bug fix: disable createImageBitmap to prevent WebGL texture compiler crashes and camera freezes
-    const IS_IOS = /^(iPad|iPhone|iPod)/.test(window.navigator.platform) || 
-                   (/^Mac/.test(window.navigator.platform) && window.navigator.maxTouchPoints > 1);
-    if (IS_IOS) {
-      window.createImageBitmap = undefined;
-      console.log("iOS WebKit detected: Disabled window.createImageBitmap to prevent camera freezes.");
-    }
+    // Unconditionally disable createImageBitmap to prevent iOS 17 / macOS WebKit WebGL canvas compilation memory leaks and camera freezes
+    window.createImageBitmap = undefined;
+    console.log("WebGL Stability: Disabled window.createImageBitmap.");
   </script>
   
   <!-- A-Frame and MindAR.js Libraries -->
