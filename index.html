@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Water Ripple AR Experience</title>
+  <title>Water Ripple AR Experience (Multi-Frame)</title>
   
   <!-- A-Frame and MindAR.js Libraries -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -362,7 +362,6 @@
     const _error = console.error;
     console.error = function (...args) {
       _error.apply(console, args);
-      // Suppress spammy WebGL light warnings
       if (args[0] && typeof args[0] === 'string' && args[0].includes('useLegacyLights')) return;
       logErrorToScreen(`ERR: ${args.join(' ')}`);
     };
@@ -374,24 +373,35 @@
       logErrorToScreen(`WARN: ${args.join(' ')}`);
     };
 
-    // A-Frame component to handle video tracking sync and visibility
+    // State machine to track active targets
+    const activeTargets = new Set();
+
+    // A-Frame component to handle video tracking sync and visibility dynamically
     AFRAME.registerComponent('video-controller', {
+      schema: {
+        videoSelector: {type: 'string'},
+        targetId: {type: 'int'}
+      },
       init: function () {
-        const video = document.querySelector('#animation-video');
+        const video = document.querySelector(this.data.videoSelector);
         const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
-        // On target found: play video, hide scanning guide
+        // On target found: play corresponding video, hide scanning guide
         this.el.addEventListener('targetFound', () => {
-          console.log("Target Detected.");
+          console.log(`Target ${this.data.targetId} Detected.`);
+          activeTargets.add(this.data.targetId);
+          
           if (video) {
             if (video.readyState >= 1) {
               video.play().catch(err => {
-                console.warn("Autoplay blocked:", err);
+                console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
               });
             } else {
-              console.log("Target detected, but video still downloading. Queued play.");
+              console.log(`Target ${this.data.targetId} detected, but video still downloading. Queued play.`);
               const playOnLoad = () => {
-                video.play().catch(err => console.warn(err));
+                if (activeTargets.has(this.data.targetId)) {
+                  video.play().catch(err => console.warn(err));
+                }
                 video.removeEventListener('canplay', playOnLoad);
               };
               video.addEventListener('canplay', playOnLoad);
@@ -402,13 +412,15 @@
           }
         });
 
-        // On target lost: pause video, show scanning guide
+        // On target lost: pause corresponding video, show scanning guide ONLY if no other targets are tracked
         this.el.addEventListener('targetLost', () => {
-          console.log("Target Lost.");
+          console.log(`Target ${this.data.targetId} Lost.`);
+          activeTargets.delete(this.data.targetId);
+          
           if (video) {
             video.pause();
           }
-          if (scanningOverlay) {
+          if (activeTargets.size === 0 && scanningOverlay) {
             scanningOverlay.classList.remove('hidden');
           }
         });
@@ -449,16 +461,16 @@
             video.pause();
             console.log(`Unlocked video: ${video.id}`);
           }).catch(err => {
-            console.warn(`Initial unlock failed:`, err);
+            console.warn(`Initial unlock failed for ${video.id}:`, err);
           });
         } else {
-          console.log(`Video loading. Queued unlock on load.`);
+          console.log(`Video ${video.id} loading. Queued unlock on load.`);
           const asyncUnlock = () => {
             video.play().then(() => {
               video.pause();
               console.log(`Asynchronously unlocked video: ${video.id}`);
             }).catch(err => {
-              console.warn(`Asynchronous unlock failed:`, err);
+              console.warn(`Asynchronous unlock failed for ${video.id}:`, err);
             });
             video.removeEventListener('canplay', asyncUnlock);
           };
@@ -471,8 +483,8 @@
         startBtn.addEventListener('click', () => {
           console.log("Starting experience: Initiating video unlock checks.");
           
-          const video = document.querySelector('#animation-video');
-          unlockVideo(video);
+          const videos = document.querySelectorAll('video');
+          videos.forEach(unlockVideo);
 
           // Hide loading overlay to reveal the camera feed
           if (loadingScreen) {
@@ -535,21 +547,34 @@
   </div>
 
   <!-- 3. AR Scene Container -->
+  <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
+    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
     device-orientation-permission-ui="enabled: false"
     loading-screen="enabled: false">
     
-    <!-- We place the video element inside <a-assets>, but use CSS overrides (defined in head) 
+    <!-- We place the video elements inside <a-assets>, but use CSS overrides (defined in head) 
          to override display:none to display:block with tiny opacity. This satisfies both A-Frame's asset loading 
          registry and WebKit's hardware decoder visibility checks. -->
     <a-assets>
+      <!-- Video 0 points to animation.mp4 -->
       <video 
-        id="animation-video" 
+        id="animation-video-0" 
         src="./animation.mp4" 
+        preload="auto" 
+        loop="true" 
+        autoplay="true" 
+        muted 
+        playsinline 
+        webkit-playsinline>
+      </video>
+      <!-- Video 1 points to animation1.mp4 -->
+      <video 
+        id="animation-video-1" 
+        src="./animation1.mp4" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
@@ -562,10 +587,22 @@
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
     <!-- Target 1 (Index 0) -->
-    <a-entity mindar-image-target="targetIndex: 0" video-controller>
+    <a-entity mindar-image-target="targetIndex: 0" video-controller="videoSelector: #animation-video-0; targetId: 0">
       <!-- Fits exactly to the 1792 x 2374 target image boundary ratio (1.0 : 1.32478) -->
       <a-video 
-        src="#animation-video" 
+        src="#animation-video-0" 
+        width="1.0" 
+        height="1.32478" 
+        position="0 0 0" 
+        rotation="0 0 0">
+      </a-video>
+    </a-entity>
+
+    <!-- Target 2 (Index 1) -->
+    <a-entity mindar-image-target="targetIndex: 1" video-controller="videoSelector: #animation-video-1; targetId: 1">
+      <!-- Fits to your second target. Adjust height dynamically to match your second target image ratio (height/width) -->
+      <a-video 
+        src="#animation-video-1" 
         width="1.0" 
         height="1.32478" 
         position="0 0 0" 
