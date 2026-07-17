@@ -342,12 +342,15 @@
     const _error = console.error;
     console.error = function (...args) {
       _error.apply(console, args);
+      // Suppress spammy WebGL lights warnings to keep screen clear
+      if (args[0] && typeof args[0] === 'string' && args[0].includes('useLegacyLights')) return;
       logErrorToScreen(`ERR: ${args.join(' ')}`);
     };
 
     const _warn = console.warn;
     console.warn = function (...args) {
       _warn.apply(console, args);
+      if (args[0] && typeof args[0] === 'string' && args[0].includes('useLegacyLights')) return;
       logErrorToScreen(`WARN: ${args.join(' ')}`);
     };
 
@@ -366,13 +369,24 @@
 
         // On target found: play corresponding video, hide scanning guide
         this.el.addEventListener('targetFound', () => {
-          console.log(`Target ${this.data.targetId} Found.`);
+          console.log(`Target ${this.data.targetId} Detected.`);
           activeTargets.add(this.data.targetId);
           
           if (video) {
-            video.play().catch(err => {
-              console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
-            });
+            if (video.readyState >= 1) {
+              video.play().catch(err => {
+                console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
+              });
+            } else {
+              console.log(`Target ${this.data.targetId} detected, but video not loaded yet. Queuing play handler.`);
+              const playOnLoad = () => {
+                if (activeTargets.has(this.data.targetId)) {
+                  video.play().catch(err => console.warn(err));
+                }
+                video.removeEventListener('canplay', playOnLoad);
+              };
+              video.addEventListener('canplay', playOnLoad);
+            }
           }
           if (scanningOverlay) {
             scanningOverlay.classList.add('hidden');
@@ -419,23 +433,41 @@
         }
       });
 
+      // Helper function to safely unlock video element media state
+      function unlockVideo(video) {
+        if (!video) return;
+        
+        if (video.readyState >= 1) {
+          // If metadata is ready, play and pause immediately
+          video.play().then(() => {
+            video.pause();
+            console.log(`Unlocked video: ${video.id}`);
+          }).catch(err => {
+            console.warn(`Initial unlock failed for ${video.id}:`, err);
+          });
+        } else {
+          // If not loaded yet, queue unlock as soon as media load reaches canplay
+          console.log(`Video ${video.id} is loading. Queued unlock on load.`);
+          const asyncUnlock = () => {
+            video.play().then(() => {
+              video.pause();
+              console.log(`Asynchronously unlocked video: ${video.id}`);
+            }).catch(err => {
+              console.warn(`Asynchronous unlock failed for ${video.id}:`, err);
+            });
+            video.removeEventListener('canplay', asyncUnlock);
+          };
+          video.addEventListener('canplay', asyncUnlock);
+        }
+      }
+
       // Handle click/touchstart on the start button to unlock video contexts
       if (startBtn) {
         startBtn.addEventListener('click', () => {
-          console.log("Starting experience: Unlocking video playback context.");
+          console.log("Starting experience: Initiating video unlock checks.");
           
-          // Play and immediately pause both videos to unlock them in Safari / Chrome
           const videos = document.querySelectorAll('video');
-          videos.forEach(video => {
-            if (video) {
-              video.play().then(() => {
-                video.pause();
-                console.log(`Unlocked video: ${video.id}`);
-              }).catch(err => {
-                console.error(`Unlock failed: ${video.id}`, err);
-              });
-            }
-          });
+          videos.forEach(unlockVideo);
 
           // Hide loading overlay to reveal the camera feed
           if (loadingScreen) {
