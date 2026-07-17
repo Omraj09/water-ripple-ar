@@ -164,13 +164,49 @@
       animation: pulse 1.5s infinite alternate;
     }
 
+    /* Premium Start Button */
+    #start-btn {
+      margin-top: 25px;
+      padding: 14px 35px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      color: #090714;
+      background: var(--accent-color);
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: var(--accent-glow);
+      transition: transform 0.2s ease, opacity 0.4s ease, background-color 0.3s ease;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: buttonPulse 2s infinite;
+      z-index: 10000;
+    }
+
+    #start-btn:active {
+      transform: scale(0.95);
+    }
+
+    #start-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+      display: none;
+    }
+
+    @keyframes buttonPulse {
+      0% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
+      70% { box-shadow: 0 0 0 15px rgba(0, 240, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
+    }
+
     @keyframes pulse {
       0% { opacity: 0.4; }
       100% { opacity: 1; }
     }
 
     .instructions {
-      margin-top: 20px;
+      margin-top: 25px;
       font-size: 11px;
       color: rgba(255, 255, 255, 0.45);
       line-height: 1.5;
@@ -285,7 +321,7 @@
   </style>
   
   <script>
-    // State machine to track which targets are active in camera feed
+    // State machine to track active targets
     const activeTargets = new Set();
 
     // A-Frame component to handle video tracking sync and visibility dynamically
@@ -300,12 +336,13 @@
 
         // On target found: play corresponding video, hide scanning guide
         this.el.addEventListener('targetFound', () => {
-          console.log(`Target ${this.data.targetId} Found: Playing video.`);
+          console.log(`Target ${this.data.targetId} Found: Attempting to play video.`);
           activeTargets.add(this.data.targetId);
           
           if (video) {
+            // Force play video on detection (now safe because of the start button unlock gesture)
             video.play().catch(err => {
-              console.warn("Autoplay blocked by browser. Awaiting user interaction.", err);
+              console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
             });
           }
           if (scanningOverlay) {
@@ -332,19 +369,20 @@
     document.addEventListener('DOMContentLoaded', () => {
       const sceneEl = document.querySelector('a-scene');
       const loadingScreen = document.querySelector('#custom-loading');
+      const statusText = document.querySelector('.status-text');
+      const startBtn = document.querySelector('#start-btn');
+      const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
-      // Hide loading screen when engine starts
+      // Show start button when engine is ready
       sceneEl.addEventListener('arReady', (event) => {
         console.log("MindAR Engine initialized successfully.");
-        if (loadingScreen) {
-          loadingScreen.classList.add('fade-out');
-        }
+        if (statusText) statusText.innerText = "ENGINE READY";
+        if (startBtn) startBtn.classList.remove('hidden');
       });
 
       // Handle setup errors gracefully
       sceneEl.addEventListener('arError', (event) => {
         console.error("MindAR Engine failed to initialize:", event);
-        const statusText = document.querySelector('.status-text');
         if (statusText) {
           statusText.innerText = "Camera error or unsupported browser";
           statusText.style.color = "#ff4e4e";
@@ -352,17 +390,37 @@
         }
       });
 
-      // Unlock mobile media playback capability on first touch
-      document.body.addEventListener('touchstart', () => {
-        const videos = document.querySelectorAll('video');
-        videos.forEach(video => {
-          if (video && video.paused) {
-            video.play().then(() => {
-              video.pause();
-            }).catch(err => console.log("Video unlock rejected:", err));
+      // Handle click/touchstart on the start button to unlock video contexts
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          console.log("Starting experience: Unlocking video playback context.");
+          
+          // Play and immediately pause both videos to unlock them in Safari / Chrome
+          const videos = document.querySelectorAll('video');
+          videos.forEach(video => {
+            if (video) {
+              video.play().then(() => {
+                video.pause();
+                console.log(`Successfully unlocked video: ${video.id}`);
+              }).catch(err => {
+                console.error(`Failed to unlock video: ${video.id}`, err);
+              });
+            }
+          });
+
+          // Hide loading overlay to reveal the camera feed
+          if (loadingScreen) {
+            loadingScreen.classList.add('fade-out');
+          }
+
+          // Show target scanner guide
+          if (scanningOverlay) {
+            setTimeout(() => {
+              scanningOverlay.classList.remove('hidden');
+            }, 800);
           }
         });
-      }, { once: true });
+      }
     });
   </script>
 </head>
@@ -384,6 +442,9 @@
       
       <div class="status-text">INITIALIZING ENGINE...</div>
       
+      <!-- Start Button (revealed when arReady) -->
+      <button id="start-btn" class="hidden">START AR</button>
+      
       <p class="instructions">
         Please allow camera access when prompted and hold your device facing either frame.
       </p>
@@ -404,8 +465,9 @@
 
   <!-- 3. AR Scene Container -->
   <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
+  <!-- Appended ?v=12 to force cache-busting on the MindAR tracking assets -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
+    mindar-image="imageTargetSrc: ./targets.mind?v=12; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
@@ -413,10 +475,10 @@
     loading-screen="enabled: false">
     
     <a-assets>
-      <!-- Video Asset 1 (for targetIndex 0) -->
+      <!-- Video Asset 1 (for targetIndex 0) with cache-busting -->
       <video 
         id="animation-video-0" 
-        src="./animation0.mp4" 
+        src="./animation0.mp4?v=12" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
@@ -424,10 +486,10 @@
         playsinline 
         webkit-playsinline>
       </video>
-      <!-- Video Asset 2 (for targetIndex 1) -->
+      <!-- Video Asset 2 (for targetIndex 1) with cache-busting -->
       <video 
         id="animation-video-1" 
-        src="./animation1.mp4" 
+        src="./animation1.mp4?v=12" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
