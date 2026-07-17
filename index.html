@@ -347,10 +347,14 @@
   </style>
   
   <script>
-    // System log window for mobile debugging (Always Visible)
+    // System log window for mobile debugging (Hidden by default, pops up on error)
     function logErrorToScreen(msg) {
       const consoleDiv = document.querySelector('#debug-console');
       if (consoleDiv) {
+        // Automatically make visible if an actual error occurs
+        if (msg.startsWith('JS ERR') || msg.startsWith('ERR:')) {
+          consoleDiv.style.display = 'block';
+        }
         const errEl = document.createElement('div');
         errEl.style.margin = '4px 0';
         errEl.innerText = `> ${msg}`;
@@ -438,7 +442,6 @@
         targetId: {type: 'int'}
       },
       init: function () {
-        // Log initialization check to verify A-Frame parsed targets properly
         logErrorToScreen(`Controller init: target ${this.data.targetId} linking to ${this.data.videoSelector}`);
         
         const video = document.querySelector(this.data.videoSelector);
@@ -555,8 +558,8 @@
 </head>
 <body>
 
-  <!-- Diagnostic console for mobile debugging (Always Visible) -->
-  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; border-top: 1px solid #ff4e4e; pointer-events: auto;">
+  <!-- Diagnostic console for mobile debugging (Hidden by default, pops up on error) -->
+  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; display: none; border-top: 1px solid #ff4e4e; pointer-events: auto;">
     <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
   </div>
 
@@ -598,9 +601,9 @@
   </div>
 
   <!-- 3. AR Scene Container -->
-  <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
+  <!-- Tuned filterMinCF and filterBeta parameters to stabilize abstract pattern tracking jitter -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
+    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.001; filterBeta: 1.0;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
