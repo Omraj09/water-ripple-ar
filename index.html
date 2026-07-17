@@ -237,7 +237,7 @@
     }
 
     .scanner-frame {
-      width: 255px; /* 3:4 Aspect Ratio: Width 255px x Height 340px */
+      width: 255px; /* 3:4 Aspect Ratio */
       height: 340px;
       border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(0, 240, 255, 0.015);
@@ -321,6 +321,36 @@
   </style>
   
   <script>
+    // System log window for mobile debugging
+    function logErrorToScreen(msg) {
+      const consoleDiv = document.querySelector('#debug-console');
+      if (consoleDiv) {
+        consoleDiv.style.display = 'block';
+        const errEl = document.createElement('div');
+        errEl.style.margin = '4px 0';
+        errEl.innerText = `> ${msg}`;
+        consoleDiv.appendChild(errEl);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+      }
+    }
+
+    window.onerror = function (message, url, lineNo, colNo, error) {
+      logErrorToScreen(`JS ERR: ${message} (Line ${lineNo}:${colNo})`);
+      return false;
+    };
+
+    const _error = console.error;
+    console.error = function (...args) {
+      _error.apply(console, args);
+      logErrorToScreen(`ERR: ${args.join(' ')}`);
+    };
+
+    const _warn = console.warn;
+    console.warn = function (...args) {
+      _warn.apply(console, args);
+      logErrorToScreen(`WARN: ${args.join(' ')}`);
+    };
+
     // State machine to track active targets
     const activeTargets = new Set();
 
@@ -336,11 +366,10 @@
 
         // On target found: play corresponding video, hide scanning guide
         this.el.addEventListener('targetFound', () => {
-          console.log(`Target ${this.data.targetId} Found: Attempting to play video.`);
+          console.log(`Target ${this.data.targetId} Found.`);
           activeTargets.add(this.data.targetId);
           
           if (video) {
-            // Force play video on detection (now safe because of the start button unlock gesture)
             video.play().catch(err => {
               console.warn(`Autoplay blocked on target ${this.data.targetId}:`, err);
             });
@@ -352,7 +381,7 @@
 
         // On target lost: pause corresponding video, show scanning guide ONLY if no other targets are tracked
         this.el.addEventListener('targetLost', () => {
-          console.log(`Target ${this.data.targetId} Lost: Pausing video.`);
+          console.log(`Target ${this.data.targetId} Lost.`);
           activeTargets.delete(this.data.targetId);
           
           if (video) {
@@ -382,9 +411,9 @@
 
       // Handle setup errors gracefully
       sceneEl.addEventListener('arError', (event) => {
-        console.error("MindAR Engine failed to initialize:", event);
+        console.error("MindAR Engine failed to initialize:", event.detail ? JSON.stringify(event.detail) : event);
         if (statusText) {
-          statusText.innerText = "Camera error or unsupported browser";
+          statusText.innerText = "Camera initialization failed";
           statusText.style.color = "#ff4e4e";
           statusText.style.animation = "none";
         }
@@ -401,9 +430,9 @@
             if (video) {
               video.play().then(() => {
                 video.pause();
-                console.log(`Successfully unlocked video: ${video.id}`);
+                console.log(`Unlocked video: ${video.id}`);
               }).catch(err => {
-                console.error(`Failed to unlock video: ${video.id}`, err);
+                console.error(`Unlock failed: ${video.id}`, err);
               });
             }
           });
@@ -425,6 +454,11 @@
   </script>
 </head>
 <body>
+
+  <!-- Diagnostic console for mobile debugging (only shows if errors occur) -->
+  <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; display: none; border-top: 1px solid #ff4e4e; pointer-events: auto;">
+    <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
+  </div>
 
   <!-- 1. Custom Glassmorphism Loading Screen -->
   <div id="custom-loading">
@@ -465,9 +499,8 @@
 
   <!-- 3. AR Scene Container -->
   <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
-  <!-- Appended ?v=12 to force cache-busting on the MindAR tracking assets -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind?v=12; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
+    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
@@ -475,10 +508,10 @@
     loading-screen="enabled: false">
     
     <a-assets>
-      <!-- Video Asset 1 (for targetIndex 0) with cache-busting -->
+      <!-- Video Asset 1 (for targetIndex 0) -->
       <video 
         id="animation-video-0" 
-        src="./animation0.mp4?v=12" 
+        src="./animation0.mp4" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
@@ -486,10 +519,10 @@
         playsinline 
         webkit-playsinline>
       </video>
-      <!-- Video Asset 2 (for targetIndex 1) with cache-busting -->
+      <!-- Video Asset 2 (for targetIndex 1) -->
       <video 
         id="animation-video-1" 
-        src="./animation1.mp4?v=12" 
+        src="./animation1.mp4" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
