@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Water Ripple AR Experience</title>
+  
+  <!-- A-Frame and MindAR.js Libraries -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+
+    :root {
+      --bg-gradient: linear-gradient(135deg, #090714 0%, #150f2e 50%, #050308 100%);
+      --accent-color: #00f0ff;
+      --accent-glow: 0 0 25px rgba(0, 240, 255, 0.55);
+      --text-primary: #ffffff;
+      --text-secondary: #a0aec0;
+      --glass-bg: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Outfit', sans-serif;
+      background-color: #000;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Custom Premium Loading Screen */
+    #custom-loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-gradient);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.8s cubic-bezier(0.25, 1, 0.5, 1), visibility 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    #custom-loading.fade-out {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      padding: 40px 30px;
+      max-width: 380px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      margin: 25px 0 8px 0;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-color) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 300;
+      line-height: 1.6;
+      margin-bottom: 35px;
+    }
+
+    /* Water Ripple Loading Animation */
+    .ripple-container {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ripple-circle {
+      position: absolute;
+      border: 2px solid var(--accent-color);
+      opacity: 0;
+      border-radius: 50%;
+      animation: ripple 3s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+      box-shadow: var(--accent-glow);
+    }
+
+    .ripple-circle:nth-child(2) {
+      animation-delay: 1s;
+    }
+
+    .ripple-circle:nth-child(3) {
+      animation-delay: 2s;
+    }
+
+    .droplet-icon {
+      width: 22px;
+      height: 22px;
+      background: var(--accent-color);
+      border-radius: 0 50% 50% 50%;
+      transform: rotate(45deg);
+      box-shadow: var(--accent-glow);
+      z-index: 10;
+      animation: float 2.5s ease-in-out infinite;
+    }
+
+    @keyframes ripple {
+      0% {
+        width: 0px;
+        height: 0px;
+        opacity: 0.8;
+      }
+      100% {
+        width: 100px;
+        height: 100px;
+        opacity: 0;
+      }
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: rotate(45deg) translate(0, 0);
+      }
+      50% {
+        transform: rotate(45deg) translate(-3px, -3px);
+      }
+    }
+
+    .status-text {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      color: var(--accent-color);
+      font-weight: 600;
+      margin-top: 25px;
+      animation: pulse 1.5s infinite alternate;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      100% { opacity: 1; }
+    }
+
+    .instructions {
+      margin-top: 20px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      line-height: 1.5;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 20px;
+      width: 100%;
+    }
+
+    /* Custom Scanning Overlay UI */
+    #custom-scanning-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    #custom-scanning-overlay.hidden {
+      opacity: 0;
+    }
+
+    .scanner-frame {
+      width: 255px; /* Perfect 3:4 Aspect Ratio: Width 255px x Height 340px */
+      height: 340px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 240, 255, 0.015);
+      border-radius: 16px;
+      position: relative;
+      box-shadow: inset 0 0 25px rgba(0, 240, 255, 0.06);
+    }
+
+    .corner {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--accent-color);
+    }
+
+    .top-left {
+      top: -2px;
+      left: -2px;
+      border-right: none;
+      border-bottom: none;
+      border-top-left-radius: 16px;
+    }
+
+    .top-right {
+      top: -2px;
+      right: -2px;
+      border-left: none;
+      border-bottom: none;
+      border-top-right-radius: 16px;
+    }
+
+    .bottom-left {
+      bottom: -2px;
+      left: -2px;
+      border-right: none;
+      border-top: none;
+      border-bottom-left-radius: 16px;
+    }
+
+    .bottom-right {
+      bottom: -2px;
+      right: -2px;
+      border-left: none;
+      border-top: none;
+      border-bottom-right-radius: 16px;
+    }
+
+    .scanner-line {
+      position: absolute;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(to right, transparent, var(--accent-color), transparent);
+      box-shadow: var(--accent-glow);
+      top: 0;
+      animation: scan 3.5s ease-in-out infinite;
+    }
+
+    @keyframes scan {
+      0% { top: 0%; }
+      50% { top: 100%; }
+      100% { top: 0%; }
+    }
+
+    .scan-text {
+      margin-top: 30px;
+      font-size: 13px;
+      color: #ffffff;
+      font-weight: 500;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+      letter-spacing: 1px;
+      text-align: center;
+      background: rgba(8, 6, 17, 0.7);
+      padding: 10px 22px;
+      border-radius: 30px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      animation: pulse 1.5s infinite alternate;
+    }
+  </style>
+  
+  <script>
+    // A-Frame component to handle video tracking sync and visibility
+    AFRAME.registerComponent('video-controller', {
+      init: function () {
+        const video = document.querySelector('#animation-video');
+        const scanningOverlay = document.querySelector('#custom-scanning-overlay');
+
+        // On target found: play video, hide scanning UI
+        this.el.addEventListener('targetFound', () => {
+          console.log("Target Found: Playing animation video.");
+          video.play().catch(err => {
+            console.warn("Autoplay blocked by browser. Awaiting user interaction.", err);
+          });
+          if (scanningOverlay) {
+            scanningOverlay.classList.add('hidden');
+          }
+        });
+
+        // On target lost: pause video, show scanning UI
+        this.el.addEventListener('targetLost', () => {
+          console.log("Target Lost: Pausing video.");
+          video.pause();
+          if (scanningOverlay) {
+            scanningOverlay.classList.remove('hidden');
+          }
+        });
+      }
+    });
+
+    // Window-level AR engine listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const sceneEl = document.querySelector('a-scene');
+      const loadingScreen = document.querySelector('#custom-loading');
+      const scanningOverlay = document.querySelector('#custom-scanning-overlay');
+
+      // Unhide scanning overlay and fade out loading screen when engine starts
+      sceneEl.addEventListener('arReady', (event) => {
+        console.log("MindAR Engine initialized successfully.");
+        if (loadingScreen) {
+          loadingScreen.classList.add('fade-out');
+        }
+      });
+
+      // Handle setup errors gracefully
+      sceneEl.addEventListener('arError', (event) => {
+        console.error("MindAR Engine failed to initialize:", event);
+        const statusText = document.querySelector('.status-text');
+        if (statusText) {
+          statusText.innerText = "Camera error or unsupported browser";
+          statusText.style.color = "#ff4e4e";
+          statusText.style.animation = "none";
+        }
+      });
+
+      // Unlock mobile media playback capability on touch/gesture
+      document.body.addEventListener('touchstart', () => {
+        const video = document.querySelector('#animation-video');
+        if (video && video.paused) {
+          video.play().then(() => {
+            // Keep playing target-found logic but ensure permission is unlocked
+            video.pause();
+          }).catch(err => console.log("Video unlock rejected:", err));
+        }
+      }, { once: true });
+    });
+  </script>
+</head>
+<body>
+
+  <!-- 1. Custom Glassmorphism Loading Screen -->
+  <div id="custom-loading">
+    <div class="glass-panel">
+      <!-- Water Droplet Logo / Loading Spinner -->
+      <div class="ripple-container">
+        <div class="ripple-circle"></div>
+        <div class="ripple-circle"></div>
+        <div class="ripple-circle"></div>
+        <div class="droplet-icon"></div>
+      </div>
+      
+      <h1 class="title">Water Ripple</h1>
+      <p class="subtitle">Augmented Reality Experience</p>
+      
+      <div class="status-text">INITIALIZING ENGINE...</div>
+      
+      <p class="instructions">
+        Please allow camera access when prompted and hold your device facing the wall frame.
+      </p>
+    </div>
+  </div>
+
+  <!-- 2. Custom Target Alignment Guide Overlay -->
+  <div id="custom-scanning-overlay" class="hidden">
+    <div class="scanner-frame">
+      <div class="corner top-left"></div>
+      <div class="corner top-right"></div>
+      <div class="corner bottom-left"></div>
+      <div class="corner bottom-right"></div>
+      <div class="scanner-line"></div>
+    </div>
+    <div class="scan-text">ALIGN FRAME WITHIN GUIDE</div>
+  </div>
+
+  <!-- 3. AR Scene Container -->
+  <!-- MindAR Image engine setup: uiLoading/uiError/uiScanning disabled in favor of our custom CSS interfaces -->
+  <a-scene 
+    mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no; uiScanning: no;" 
+    color-space="sRGB" 
+    renderer="colorManagement: true, physicallyCorrectLights" 
+    vr-mode-ui="enabled: false" 
+    device-orientation-permission-ui="enabled: false"
+    loading-screen="enabled: false">
+    
+    <a-assets>
+      <!-- Looping, autoplay, inline-playing, muted MP4 video asset source -->
+      <video 
+        id="animation-video" 
+        src="./animation.mp4" 
+        preload="auto" 
+        loop="true" 
+        autoplay="true" 
+        muted 
+        playsinline 
+        webkit-playsinline>
+      </video>
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- Target Entity index 0 linked to our custom video controller component -->
+    <a-entity mindar-image-target="targetIndex: 0" video-controller>
+      <!-- Perfect vertical 3:4 aspect ratio video plane overlay -->
+      <a-video 
+        src="#animation-video" 
+        width="0.75" 
+        height="1.0" 
+        position="0 0 0" 
+        rotation="0 0 0">
+      </a-video>
+    </a-entity>
+    
+  </a-scene>
+  
+</body>
+</html>
