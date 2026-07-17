@@ -35,6 +35,19 @@
       user-select: none;
     }
 
+    /* Safari video decoder workaround: renders video elements invisibly but active
+       so WebKit keeps hardware decoding enabled instead of pausing with a black screen */
+    .safari-fix {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 16px;
+      height: 9px;
+      opacity: 0.01;
+      pointer-events: none;
+      z-index: -1;
+    }
+
     /* Custom Premium Loading Screen */
     #custom-loading {
       position: fixed;
@@ -342,7 +355,7 @@
     const _error = console.error;
     console.error = function (...args) {
       _error.apply(console, args);
-      // Suppress spammy WebGL lights warnings to keep screen clear
+      // Suppress spammy WebGL light warnings to keep screen clear
       if (args[0] && typeof args[0] === 'string' && args[0].includes('useLegacyLights')) return;
       logErrorToScreen(`ERR: ${args.join(' ')}`);
     };
@@ -492,6 +505,32 @@
     <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
   </div>
 
+  <!-- Safari Video Decoder Fix: Keep video elements active in DOM layout so WebKit doesn't pause rendering.
+       We place these in the body rather than <a-assets> to prevent A-Frame's default "display: none" from shutting down WebKit decoders. -->
+  <video 
+    id="animation-video-0" 
+    src="./animation0.mp4" 
+    class="safari-fix"
+    preload="auto" 
+    loop="true" 
+    autoplay="true" 
+    muted 
+    playsinline 
+    webkit-playsinline>
+  </video>
+  
+  <video 
+    id="animation-video-1" 
+    src="./animation1.mp4" 
+    class="safari-fix"
+    preload="auto" 
+    loop="true" 
+    autoplay="true" 
+    muted 
+    playsinline 
+    webkit-playsinline>
+  </video>
+
   <!-- 1. Custom Glassmorphism Loading Screen -->
   <div id="custom-loading">
     <div class="glass-panel">
@@ -539,30 +578,8 @@
     device-orientation-permission-ui="enabled: false"
     loading-screen="enabled: false">
     
-    <a-assets>
-      <!-- Video Asset 1 (for targetIndex 0) -->
-      <video 
-        id="animation-video-0" 
-        src="./animation0.mp4" 
-        preload="auto" 
-        loop="true" 
-        autoplay="true" 
-        muted 
-        playsinline 
-        webkit-playsinline>
-      </video>
-      <!-- Video Asset 2 (for targetIndex 1) -->
-      <video 
-        id="animation-video-1" 
-        src="./animation1.mp4" 
-        preload="auto" 
-        loop="true" 
-        autoplay="true" 
-        muted 
-        playsinline 
-        webkit-playsinline>
-      </video>
-    </a-assets>
+    <!-- Keeping an empty <a-assets> container for A-Frame structural compliance -->
+    <a-assets></a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
