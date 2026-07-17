@@ -35,9 +35,10 @@
       user-select: none;
     }
 
-    /* Safari video decoder workaround: renders video elements invisibly but active
-       so WebKit keeps hardware decoding enabled instead of pausing with a black screen */
-    .safari-fix {
+    /* Safari video decoder workaround: Overrides A-Frame's default asset hiding
+       so WebKit keeps hardware decoding enabled, while A-Frame's asset loader remains happy */
+    a-assets {
+      display: block !important;
       position: fixed;
       top: 0;
       left: 0;
@@ -46,6 +47,12 @@
       opacity: 0.01;
       pointer-events: none;
       z-index: -1;
+    }
+    
+    a-assets video {
+      display: block !important;
+      width: 16px;
+      height: 9px;
     }
 
     /* Custom Premium Loading Screen */
@@ -355,7 +362,6 @@
     const _error = console.error;
     console.error = function (...args) {
       _error.apply(console, args);
-      // Suppress spammy WebGL light warnings to keep screen clear
       if (args[0] && typeof args[0] === 'string' && args[0].includes('useLegacyLights')) return;
       logErrorToScreen(`ERR: ${args.join(' ')}`);
     };
@@ -451,7 +457,6 @@
         if (!video) return;
         
         if (video.readyState >= 1) {
-          // If metadata is ready, play and pause immediately
           video.play().then(() => {
             video.pause();
             console.log(`Unlocked video: ${video.id}`);
@@ -459,7 +464,6 @@
             console.warn(`Initial unlock failed for ${video.id}:`, err);
           });
         } else {
-          // If not loaded yet, queue unlock as soon as media load reaches canplay
           console.log(`Video ${video.id} is loading. Queued unlock on load.`);
           const asyncUnlock = () => {
             video.play().then(() => {
@@ -504,32 +508,6 @@
   <div id="debug-console" style="position: fixed; bottom: 0; left: 0; width: 100%; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.85); color: #00f0ff; font-family: monospace; font-size: 10px; z-index: 100000; padding: 10px; display: none; border-top: 1px solid #ff4e4e; pointer-events: auto;">
     <div style="font-weight: bold; color: #ff4e4e; margin-bottom: 5px;">SYSTEM DIAGNOSTIC LOGS:</div>
   </div>
-
-  <!-- Safari Video Decoder Fix: Keep video elements active in DOM layout so WebKit doesn't pause rendering.
-       We place these in the body rather than <a-assets> to prevent A-Frame's default "display: none" from shutting down WebKit decoders. -->
-  <video 
-    id="animation-video-0" 
-    src="./animation0.mp4" 
-    class="safari-fix"
-    preload="auto" 
-    loop="true" 
-    autoplay="true" 
-    muted 
-    playsinline 
-    webkit-playsinline>
-  </video>
-  
-  <video 
-    id="animation-video-1" 
-    src="./animation1.mp4" 
-    class="safari-fix"
-    preload="auto" 
-    loop="true" 
-    autoplay="true" 
-    muted 
-    playsinline 
-    webkit-playsinline>
-  </video>
 
   <!-- 1. Custom Glassmorphism Loading Screen -->
   <div id="custom-loading">
@@ -578,8 +556,31 @@
     device-orientation-permission-ui="enabled: false"
     loading-screen="enabled: false">
     
-    <!-- Keeping an empty <a-assets> container for A-Frame structural compliance -->
-    <a-assets></a-assets>
+    <!-- We place the video elements inside <a-assets>, but use CSS overrides (defined in head) 
+         to override display:none to display:block with tiny opacity. This satisfies both A-Frame's asset loading 
+         registry and WebKit's hardware decoder visibility checks. -->
+    <a-assets>
+      <video 
+        id="animation-video-0" 
+        src="./animation0.mp4" 
+        preload="auto" 
+        loop="true" 
+        autoplay="true" 
+        muted 
+        playsinline 
+        webkit-playsinline>
+      </video>
+      <video 
+        id="animation-video-1" 
+        src="./animation1.mp4" 
+        preload="auto" 
+        loop="true" 
+        autoplay="true" 
+        muted 
+        playsinline 
+        webkit-playsinline>
+      </video>
+    </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
