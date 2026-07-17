@@ -438,6 +438,9 @@
         targetId: {type: 'int'}
       },
       init: function () {
+        // Log initialization check to verify A-Frame parsed targets properly
+        logErrorToScreen(`Controller init: target ${this.data.targetId} linking to ${this.data.videoSelector}`);
+        
         const video = document.querySelector(this.data.videoSelector);
         const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
