@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Water Ripple AR Experience</title>
+  <title>Water Ripple AR Experience (Multi-Frame)</title>
   
   <!-- A-Frame and MindAR.js Libraries -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -201,7 +201,7 @@
     }
 
     .scanner-frame {
-      width: 255px; /* Perfect 3:4 Aspect Ratio: Width 255px x Height 340px */
+      width: 255px; /* 3:4 Aspect Ratio: Width 255px x Height 340px */
       height: 340px;
       border: 1px solid rgba(255, 255, 255, 0.15);
       background: rgba(0, 240, 255, 0.015);
@@ -285,28 +285,43 @@
   </style>
   
   <script>
-    // A-Frame component to handle video tracking sync and visibility
+    // State machine to track which targets are active in camera feed
+    const activeTargets = new Set();
+
+    // A-Frame component to handle video tracking sync and visibility dynamically
     AFRAME.registerComponent('video-controller', {
+      schema: {
+        videoSelector: {type: 'string'},
+        targetId: {type: 'int'}
+      },
       init: function () {
-        const video = document.querySelector('#animation-video');
+        const video = document.querySelector(this.data.videoSelector);
         const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
-        // On target found: play video, hide scanning UI
+        // On target found: play corresponding video, hide scanning guide
         this.el.addEventListener('targetFound', () => {
-          console.log("Target Found: Playing animation video.");
-          video.play().catch(err => {
-            console.warn("Autoplay blocked by browser. Awaiting user interaction.", err);
-          });
+          console.log(`Target ${this.data.targetId} Found: Playing video.`);
+          activeTargets.add(this.data.targetId);
+          
+          if (video) {
+            video.play().catch(err => {
+              console.warn("Autoplay blocked by browser. Awaiting user interaction.", err);
+            });
+          }
           if (scanningOverlay) {
             scanningOverlay.classList.add('hidden');
           }
         });
 
-        // On target lost: pause video, show scanning UI
+        // On target lost: pause corresponding video, show scanning guide ONLY if no other targets are tracked
         this.el.addEventListener('targetLost', () => {
-          console.log("Target Lost: Pausing video.");
-          video.pause();
-          if (scanningOverlay) {
+          console.log(`Target ${this.data.targetId} Lost: Pausing video.`);
+          activeTargets.delete(this.data.targetId);
+          
+          if (video) {
+            video.pause();
+          }
+          if (activeTargets.size === 0 && scanningOverlay) {
             scanningOverlay.classList.remove('hidden');
           }
         });
@@ -317,9 +332,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       const sceneEl = document.querySelector('a-scene');
       const loadingScreen = document.querySelector('#custom-loading');
-      const scanningOverlay = document.querySelector('#custom-scanning-overlay');
 
-      // Unhide scanning overlay and fade out loading screen when engine starts
+      // Hide loading screen when engine starts
       sceneEl.addEventListener('arReady', (event) => {
         console.log("MindAR Engine initialized successfully.");
         if (loadingScreen) {
@@ -338,15 +352,16 @@
         }
       });
 
-      // Unlock mobile media playback capability on touch/gesture
+      // Unlock mobile media playback capability on first touch
       document.body.addEventListener('touchstart', () => {
-        const video = document.querySelector('#animation-video');
-        if (video && video.paused) {
-          video.play().then(() => {
-            // Keep playing target-found logic but ensure permission is unlocked
-            video.pause();
-          }).catch(err => console.log("Video unlock rejected:", err));
-        }
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => {
+          if (video && video.paused) {
+            video.play().then(() => {
+              video.pause();
+            }).catch(err => console.log("Video unlock rejected:", err));
+          }
+        });
       }, { once: true });
     });
   </script>
@@ -370,7 +385,7 @@
       <div class="status-text">INITIALIZING ENGINE...</div>
       
       <p class="instructions">
-        Please allow camera access when prompted and hold your device facing the wall frame.
+        Please allow camera access when prompted and hold your device facing either frame.
       </p>
     </div>
   </div>
@@ -388,9 +403,9 @@
   </div>
 
   <!-- 3. AR Scene Container -->
-  <!-- MindAR Image engine setup: uiLoading/uiError/uiScanning disabled in favor of our custom CSS interfaces -->
+  <!-- Set maxTrack: 2 to support tracking both targets concurrently -->
   <a-scene 
-    mindar-image="imageTargetSrc: ./targets.mind; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
+    mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiError: no; uiScanning: no; filterMinCF: 0.0005; filterBeta: 10;" 
     color-space="sRGB" 
     renderer="colorManagement: true, physicallyCorrectLights" 
     vr-mode-ui="enabled: false" 
@@ -398,10 +413,21 @@
     loading-screen="enabled: false">
     
     <a-assets>
-      <!-- Looping, autoplay, inline-playing, muted MP4 video asset source -->
+      <!-- Video Asset 1 (for targetIndex 0) -->
       <video 
-        id="animation-video" 
-        src="./animation.mp4" 
+        id="animation-video-0" 
+        src="./animation0.mp4" 
+        preload="auto" 
+        loop="true" 
+        autoplay="true" 
+        muted 
+        playsinline 
+        webkit-playsinline>
+      </video>
+      <!-- Video Asset 2 (for targetIndex 1) -->
+      <video 
+        id="animation-video-1" 
+        src="./animation1.mp4" 
         preload="auto" 
         loop="true" 
         autoplay="true" 
@@ -413,11 +439,23 @@
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- Target Entity index 0 linked to our custom video controller component -->
-    <a-entity mindar-image-target="targetIndex: 0" video-controller>
-      <!-- Perfect vertical 3:4 aspect ratio video plane overlay -->
+    <!-- Target 1 (Index 0) -->
+    <a-entity mindar-image-target="targetIndex: 0" video-controller="videoSelector: #animation-video-0; targetId: 0">
+      <!-- Fits exactly to the 1792 x 2374 target image boundary ratio (1.0 : 1.32478) -->
       <a-video 
-        src="#animation-video" 
+        src="#animation-video-0" 
+        width="1.0" 
+        height="1.32478" 
+        position="0 0 0" 
+        rotation="0 0 0">
+      </a-video>
+    </a-entity>
+
+    <!-- Target 2 (Index 1) -->
+    <a-entity mindar-image-target="targetIndex: 1" video-controller="videoSelector: #animation-video-1; targetId: 1">
+      <!-- Fits to your second target. Adjust height dynamically to match your second target image ratio (height/width) -->
+      <a-video 
+        src="#animation-video-1" 
         width="1.0" 
         height="1.32478" 
         position="0 0 0" 
